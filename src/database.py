@@ -41,6 +41,42 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def diagnosticar_e_repovoar_clientes() -> tuple[bool, str]:
+    """
+    Tenta popular a tabela 'clientes' com os 100 clientes sinteticos,
+    SEM esconder nenhum erro -- ao contrario de inicializar_schema(),
+    que tolera erros de corrida para nao derrubar a app no arranque
+    normal, esta funcao existe para ser chamada manualmente (por um
+    botao na interface) quando queremos ver exatamente o que esta a
+    correr mal.
+
+    Devolve (sucesso, mensagem) -- a interface mostra a mensagem
+    diretamente ao utilizador, para nao ser preciso ir aos logs do
+    Streamlit Cloud durante uma demonstracao.
+    """
+    conn = get_connection()
+    try:
+        total_atual = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+        if total_atual > 0:
+            return True, f"A tabela 'clientes' ja tem {total_atual} registos -- nada a fazer."
+
+        from data_generator import gerar_dataset
+        df = gerar_dataset(clientes_por_perfil=20)
+        df.to_sql("clientes", conn, if_exists="append", index=False)
+        conn.commit()
+
+        total_final = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+        return True, f"Sucesso: {total_final} clientes sinteticos inseridos."
+    except Exception as erro:
+        causa = getattr(erro, "__cause__", None)
+        detalhe = f"{type(erro).__name__}: {erro}"
+        if causa:
+            detalhe += f" | causa original: {type(causa).__name__}: {causa}"
+        return False, detalhe
+    finally:
+        conn.close()
+
+
 def _criar_e_popular_tabela_clientes(conn: sqlite3.Connection) -> None:
     """
     Garante que a tabela 'clientes' existe E tem dados -- de forma segura
@@ -162,7 +198,9 @@ def inicializar_schema() -> None:
     try:
         _criar_e_popular_tabela_clientes(conn)
     except Exception as erro:  # noqa: BLE001 -- intencional: nunca deixar isto derrubar a app
-        print(f"[Sentinel AI] Aviso ao inicializar 'clientes' (ignorado, provavel corrida): {erro}")
+        causa = getattr(erro, "__cause__", None)
+        print(f"[Sentinel AI] Aviso ao inicializar 'clientes' (ignorado, provavel corrida): "
+              f"{type(erro).__name__}: {erro}" + (f" | causa: {causa}" if causa else ""))
 
     try:
         _criar_tabela_respostas_adaptativas(conn)
