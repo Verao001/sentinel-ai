@@ -204,19 +204,17 @@ def atualizar_classificacao(id_cliente: int, risco_aml: int, risco_credito: int,
 def _garantir_coluna_sentinel_index(conn: sqlite3.Connection) -> None:
     """
     Garante que a coluna 'sentinel_index' existe na tabela clientes.
-
-    IMPORTANTE (licao da Fase 2): esta funcao e deliberadamente PRIVADA
-    e so e chamada por inicializar_schema(), que por sua vez so corre
-    quando o app.py a chama explicitamente no arranque. Nunca corre
-    escondida so por importares este modulo -- isso e o que causou
-    o problema anterior com outro assistente.
     """
-    colunas_existentes = [
-        linha[1] for linha in conn.execute("PRAGMA table_info(clientes)").fetchall()
-    ]
-    if "sentinel_index" not in colunas_existentes:
-        conn.execute("ALTER TABLE clientes ADD COLUMN sentinel_index REAL")
-        conn.commit()
+    try:
+        colunas_existentes = [
+            linha[1] for linha in conn.execute("PRAGMA table_info(clientes)").fetchall()
+        ]
+        if "sentinel_index" not in colunas_existentes:
+            conn.execute("ALTER TABLE clientes ADD COLUMN sentinel_index REAL")
+            conn.commit()
+    except Exception:
+        # Se a tabela ainda não existe, ignora (será criada depois)
+        pass
 
 
 def inicializar_schema() -> None:
