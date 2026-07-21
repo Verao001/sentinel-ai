@@ -6,28 +6,90 @@ Este modulo e a UNICA parte do sistema que fala diretamente com o SQLite.
 Todas as outras partes (formulario, dashboard, motor de classificacao, etc.)
 devem passar por aqui. Isto chama-se "separacao de responsabilidades":
 a logica de negocio nunca deve misturar-se com o acesso a dados.
+
+Correcao pos-deploy (Streamlit Cloud): a base de dados e agora
+"auto-suficiente" -- se a tabela 'clientes' nao existir (ex.: repositorio
+clonado de novo, sem o ficheiro .db), a propria inicializar_schema()
+cria a tabela E gera os 100 clientes sinteticos automaticamente. A app
+deixa de depender de alguem ter corrido data_generator.py a mao, ou de
+o ficheiro .db estar (ou nao) no GitHub.
 """
 
+import os
 import sqlite3
 from pathlib import Path
 
 import pandas as pd
 
+# Caminho ABSOLUTO, calculado a partir da localizacao deste ficheiro --
+# funciona sempre da mesma forma, seja qual for a pasta a partir de onde
+# o Streamlit foi arrancado (isto era uma fonte de bugs: um caminho
+# relativo como "database/sentinel.db" depende do diretorio de trabalho
+# atual, que pode ser diferente entre o teu PC e o Streamlit Cloud).
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "database" / "sentinel.db"
 
 
-import sqlite3
-import os
-
-# Caminho simples e confiável para Streamlit Cloud
-DB_PATH = "database/sentinel.db"
-
 def get_connection() -> sqlite3.Connection:
-    """Abre uma ligação à base de dados Sentinel."""
-    # Garante que a pasta existe
-    os.makedirs("database", exist_ok=True)
+    """Abre uma ligacao a base de dados Sentinel, criando a pasta se preciso."""
+    os.makedirs(DB_PATH.parent, exist_ok=True)
     return sqlite3.connect(DB_PATH)
+
+
+def _tabela_existe(conn: sqlite3.Connection, nome_tabela: str) -> bool:
+    """Verifica se uma tabela existe na base de dados, consultando o catalogo do SQLite."""
+    cursor = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (nome_tabela,),
+    )
+    return cursor.fetchone() is not None
+
+
+def _criar_e_popular_tabela_clientes(conn: sqlite3.Connection) -> None:
+    """
+    Garante que a tabela 'clientes' existe E tem dados.
+
+    ISTO ERA O QUE FALTAVA: a versao anterior de inicializar_schema()
+    nunca criava esta tabela -- assumia que o sentinel.db, ja com a
+    tabela pronta, tinha sido copiado para o servidor. Em Streamlit
+    Cloud isso falha sempre que o .db nao esta no repositorio Git (por
+    exemplo, por estar no .gitignore).
+
+    Se a tabela nao existir, criamo-la com o schema correto E
+    populamo-la de imediato com os 100 clientes sinteticos -- a mesma
+    lógica de data_generator.py, chamada aqui para que a app nunca
+    fique "de pe, mas vazia e partida".
+    """
+    if _tabela_existe(conn, "clientes"):
+        return
+
+    # Import local (nao no topo do ficheiro): so precisamos do gerador
+    # de dados sinteticos neste caso raro (primeira vez que a app corre
+    # numa base de dados nova), nao em todos os pedidos normais.
+    from data_generator import gerar_dataset
+
+    conn.execute("""
+        CREATE TABLE clientes (
+            id_cliente INTEGER PRIMARY KEY,
+            nome TEXT NOT NULL,
+            idade INTEGER,
+            profissao TEXT,
+            segmento_comercial TEXT,
+            saldo_medio REAL,
+            risco_aml INTEGER,
+            risco_credito INTEGER,
+            rentabilidade REAL,
+            nivel_seguranca TEXT,
+            perfil_origem TEXT,
+            sentinel_index REAL
+        )
+    """)
+    conn.commit()
+
+    df = gerar_dataset(clientes_por_perfil=20)
+    df.to_sql("clientes", conn, if_exists="append", index=False)
+    conn.commit()
+    print(f"[Sentinel AI] Tabela 'clientes' criada e populada com {len(df)} clientes sinteticos.")
 
 
 def _criar_tabela_respostas_adaptativas(conn: sqlite3.Connection) -> None:
@@ -53,6 +115,40 @@ def _criar_tabela_respostas_adaptativas(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _garantir_coluna_sentinel_index(conn: sqlite3.Connection) -> None:
+    """
+    Garante que a coluna 'sentinel_index' existe na tabela clientes.
+
+    Nota: a partir desta correcao, a tabela 'clientes' e sempre criada
+    ja com esta coluna (ver _criar_e_popular_tabela_clientes), por isso
+    esta funcao so entra em accao em bases de dados antigas, criadas
+    antes desta correcao.
+    """
+    colunas_existentes = [
+        linha[1] for linha in conn.execute("PRAGMA table_info(clientes)").fetchall()
+    ]
+    if "sentinel_index" not in colunas_existentes:
+        conn.execute("ALTER TABLE clientes ADD COLUMN sentinel_index REAL")
+        conn.commit()
+
+
+def inicializar_schema() -> None:
+    """
+    Ponto UNICO e explicito de migracao/inicializacao do schema da base
+    de dados. Deve ser chamada uma vez, no arranque do app.py -- antes
+    de qualquer outra funcao deste modulo ser usada.
+
+    Ordem importa: primeiro garantimos que 'clientes' existe (e tem
+    dados), so depois tratamos da tabela de respostas e da coluna extra
+    -- ambas dependem de 'clientes' ja existir.
+    """
+    conn = get_connection()
+    _criar_e_popular_tabela_clientes(conn)
+    _criar_tabela_respostas_adaptativas(conn)
+    _garantir_coluna_sentinel_index(conn)
+    conn.close()
+
+
 def obter_proximo_id(conn: sqlite3.Connection) -> int:
     """Calcula o proximo id_cliente disponivel (MAX + 1)."""
     cursor = conn.execute("SELECT MAX(id_cliente) FROM clientes")
@@ -69,8 +165,6 @@ def inserir_cliente(dados_cliente: dict) -> int:
     Classificacao Multidimensional (Fase 3).
     """
     conn = get_connection()
-    _criar_tabela_respostas_adaptativas(conn)
-
     novo_id = obter_proximo_id(conn)
 
     conn.execute("""
@@ -101,7 +195,6 @@ def inserir_cliente(dados_cliente: dict) -> int:
 def inserir_respostas_adaptativas(id_cliente: int, respostas: dict) -> None:
     """Guarda as respostas especificas do segmento escolhido no formulario."""
     conn = get_connection()
-    _criar_tabela_respostas_adaptativas(conn)
 
     for pergunta, resposta in respostas.items():
         conn.execute("""
@@ -172,7 +265,6 @@ def listar_pendentes() -> pd.DataFrame:
 def obter_respostas_adaptativas(id_cliente: int) -> dict:
     """Devolve as respostas do formulario adaptativo de um cliente, como dicionario."""
     conn = get_connection()
-    _criar_tabela_respostas_adaptativas(conn)
     cursor = conn.execute("""
         SELECT pergunta, resposta FROM respostas_adaptativas
         WHERE id_cliente = ?
@@ -194,41 +286,6 @@ def atualizar_classificacao(id_cliente: int, risco_aml: int, risco_credito: int,
         WHERE id_cliente = ?
     """, (risco_aml, risco_credito, nivel_seguranca, id_cliente))
     conn.commit()
-    conn.close()
-
-
-# ---------------------------------------------------------------------------
-# Funcoes adicionadas na Fase 4: apoio ao Sentinel Index
-# ---------------------------------------------------------------------------
-
-def _garantir_coluna_sentinel_index(conn: sqlite3.Connection) -> None:
-    """
-    Garante que a coluna 'sentinel_index' existe na tabela clientes.
-    """
-    try:
-        colunas_existentes = [
-            linha[1] for linha in conn.execute("PRAGMA table_info(clientes)").fetchall()
-        ]
-        if "sentinel_index" not in colunas_existentes:
-            conn.execute("ALTER TABLE clientes ADD COLUMN sentinel_index REAL")
-            conn.commit()
-    except Exception:
-        # Se a tabela ainda não existe, ignora (será criada depois)
-        pass
-
-
-def inicializar_schema() -> None:
-    """
-    Ponto UNICO e explicito de migracao do schema da base de dados.
-
-    Deve ser chamada uma vez, no arranque do app.py -- nunca a
-    escondidas dentro de outra funcao "por seguranca". Se no futuro
-    precisares de adicionar mais colunas ou tabelas, adiciona-as aqui,
-    de forma visivel e documentada.
-    """
-    conn = get_connection()
-    _criar_tabela_respostas_adaptativas(conn)
-    _garantir_coluna_sentinel_index(conn)
     conn.close()
 
 
