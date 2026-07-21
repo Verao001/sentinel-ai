@@ -17,8 +17,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "database" / "sentinel.db"
 
 
+import sqlite3
+import os
+
+# Caminho simples e confiável para Streamlit Cloud
+DB_PATH = "database/sentinel.db"
+
 def get_connection() -> sqlite3.Connection:
-    """Abre uma ligacao a base de dados Sentinel."""
+    """Abre uma ligação à base de dados Sentinel."""
+    # Garante que a pasta existe
+    os.makedirs("database", exist_ok=True)
     return sqlite3.connect(DB_PATH)
 
 
