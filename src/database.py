@@ -33,43 +33,34 @@ DB_PATH = BASE_DIR / "database" / "sentinel.db"
 def get_connection() -> sqlite3.Connection:
     """Abre uma ligacao a base de dados Sentinel, criando a pasta se preciso."""
     os.makedirs(DB_PATH.parent, exist_ok=True)
-    return sqlite3.connect(DB_PATH)
-
-
-def _tabela_existe(conn: sqlite3.Connection, nome_tabela: str) -> bool:
-    """Verifica se uma tabela existe na base de dados, consultando o catalogo do SQLite."""
-    cursor = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        (nome_tabela,),
-    )
-    return cursor.fetchone() is not None
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    # Se outra ligacao estiver a escrever no mesmo instante (ex.: dois
+    # utilizadores a abrir a app ao mesmo tempo no Streamlit Cloud),
+    # espera ate 5s em vez de falhar logo com "database is locked".
+    conn.execute("PRAGMA busy_timeout = 5000")
+    return conn
 
 
 def _criar_e_popular_tabela_clientes(conn: sqlite3.Connection) -> None:
     """
-    Garante que a tabela 'clientes' existe E tem dados.
+    Garante que a tabela 'clientes' existe E tem dados -- de forma segura
+    mesmo que duas sessoes (ex.: dois separadores do browser, ou um
+    health-check do Streamlit Cloud a correr ao mesmo tempo que o
+    utilizador real) cheguem aqui exatamente ao mesmo tempo no primeiro
+    arranque.
 
-    ISTO ERA O QUE FALTAVA: a versao anterior de inicializar_schema()
-    nunca criava esta tabela -- assumia que o sentinel.db, ja com a
-    tabela pronta, tinha sido copiado para o servidor. Em Streamlit
-    Cloud isso falha sempre que o .db nao esta no repositorio Git (por
-    exemplo, por estar no .gitignore).
-
-    Se a tabela nao existir, criamo-la com o schema correto E
-    populamo-la de imediato com os 100 clientes sinteticos -- a mesma
-    lógica de data_generator.py, chamada aqui para que a app nunca
-    fique "de pe, mas vazia e partida".
+    Duas protecoes contra a corrida:
+      1. 'CREATE TABLE IF NOT EXISTS' em vez de 'CREATE TABLE' -- nunca
+         falha so porque outra ligacao ja criou a tabela entretanto.
+      2. So populamos com os 100 clientes sinteticos se a tabela estiver
+         mesmo vazia (COUNT == 0) -- e mesmo assim, se outra ligacao
+         'ganhar a corrida' e inserir primeiro, apanhamos o erro de
+         chave duplicada e ignoramo-lo (o resultado final e o mesmo:
+         a tabela fica com os clientes, nao importa qual ligacao os
+         inseriu).
     """
-    if _tabela_existe(conn, "clientes"):
-        return
-
-    # Import local (nao no topo do ficheiro): so precisamos do gerador
-    # de dados sinteticos neste caso raro (primeira vez que a app corre
-    # numa base de dados nova), nao em todos os pedidos normais.
-    from data_generator import gerar_dataset
-
     conn.execute("""
-        CREATE TABLE clientes (
+        CREATE TABLE IF NOT EXISTS clientes (
             id_cliente INTEGER PRIMARY KEY,
             nome TEXT NOT NULL,
             idade INTEGER,
@@ -86,10 +77,23 @@ def _criar_e_popular_tabela_clientes(conn: sqlite3.Connection) -> None:
     """)
     conn.commit()
 
+    total_atual = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+    if total_atual > 0:
+        return
+
+    # Import local: so precisamos do gerador de dados sinteticos neste
+    # caso raro (primeira vez que a app corre numa base de dados nova).
+    from data_generator import gerar_dataset
+
     df = gerar_dataset(clientes_por_perfil=20)
-    df.to_sql("clientes", conn, if_exists="append", index=False)
-    conn.commit()
-    print(f"[Sentinel AI] Tabela 'clientes' criada e populada com {len(df)} clientes sinteticos.")
+    try:
+        df.to_sql("clientes", conn, if_exists="append", index=False)
+        conn.commit()
+        print(f"[Sentinel AI] Tabela 'clientes' criada e populada com {len(df)} clientes sinteticos.")
+    except sqlite3.IntegrityError:
+        # Outra ligacao ja inseriu os mesmos clientes entretanto -- nao
+        # ha nada de errado, so significa que perdemos a corrida.
+        conn.rollback()
 
 
 def _criar_tabela_respostas_adaptativas(conn: sqlite3.Connection) -> None:
@@ -128,8 +132,14 @@ def _garantir_coluna_sentinel_index(conn: sqlite3.Connection) -> None:
         linha[1] for linha in conn.execute("PRAGMA table_info(clientes)").fetchall()
     ]
     if "sentinel_index" not in colunas_existentes:
-        conn.execute("ALTER TABLE clientes ADD COLUMN sentinel_index REAL")
-        conn.commit()
+        try:
+            conn.execute("ALTER TABLE clientes ADD COLUMN sentinel_index REAL")
+            conn.commit()
+        except sqlite3.OperationalError as erro:
+            # Outra ligacao concorrente ja adicionou a coluna entre o
+            # PRAGMA acima e este ALTER TABLE -- nao ha nada de errado.
+            if "duplicate column" not in str(erro).lower():
+                raise
 
 
 def inicializar_schema() -> None:
@@ -138,14 +148,32 @@ def inicializar_schema() -> None:
     de dados. Deve ser chamada uma vez, no arranque do app.py -- antes
     de qualquer outra funcao deste modulo ser usada.
 
-    Ordem importa: primeiro garantimos que 'clientes' existe (e tem
-    dados), so depois tratamos da tabela de respostas e da coluna extra
-    -- ambas dependem de 'clientes' ja existir.
+    Cada etapa esta protegida com o seu proprio try/except: em teoria,
+    'CREATE TABLE IF NOT EXISTS' e afins ja deveriam ser seguros sozinhos,
+    mas na pratica o SQLite pode devolver erros transitorios quando
+    varias sessoes do Streamlit Cloud tentam inicializar a base de dados
+    exatamente ao mesmo tempo (ex.: um health-check automatico e um
+    investidor a abrir a app no telemovel, no mesmo segundo). Preferimos
+    registar um aviso na consola a deixar a app inteira mostrar uma
+    pagina de erro por causa de uma corrida que se resolve sozinha.
     """
     conn = get_connection()
-    _criar_e_popular_tabela_clientes(conn)
-    _criar_tabela_respostas_adaptativas(conn)
-    _garantir_coluna_sentinel_index(conn)
+
+    try:
+        _criar_e_popular_tabela_clientes(conn)
+    except Exception as erro:  # noqa: BLE001 -- intencional: nunca deixar isto derrubar a app
+        print(f"[Sentinel AI] Aviso ao inicializar 'clientes' (ignorado, provavel corrida): {erro}")
+
+    try:
+        _criar_tabela_respostas_adaptativas(conn)
+    except Exception as erro:  # noqa: BLE001
+        print(f"[Sentinel AI] Aviso ao inicializar 'respostas_adaptativas' (ignorado): {erro}")
+
+    try:
+        _garantir_coluna_sentinel_index(conn)
+    except Exception as erro:  # noqa: BLE001
+        print(f"[Sentinel AI] Aviso ao garantir coluna 'sentinel_index' (ignorado): {erro}")
+
     conn.close()
 
 
@@ -221,8 +249,18 @@ def listar_clientes(limite: int = 10) -> pd.DataFrame:
 def contar_clientes() -> int:
     """Conta quantos clientes existem atualmente na base de dados."""
     conn = get_connection()
-    cursor = conn.execute("SELECT COUNT(*) FROM clientes")
-    total = cursor.fetchone()[0]
+    try:
+        cursor = conn.execute("SELECT COUNT(*) FROM clientes")
+        total = cursor.fetchone()[0]
+    except sqlite3.OperationalError:
+        # Ainda nao havia tabela no instante exato desta leitura (corrida
+        # rara no primeiro arranque) -- garante o schema aqui mesmo e
+        # tenta novamente, em vez de deixar a pagina inteira crashar.
+        conn.close()
+        inicializar_schema()
+        conn = get_connection()
+        cursor = conn.execute("SELECT COUNT(*) FROM clientes")
+        total = cursor.fetchone()[0]
     conn.close()
     return total
 
