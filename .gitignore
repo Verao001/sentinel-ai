@@ -1,0 +1,17 @@
+# Ambientes virtuais
+venv/
+env/
+*.env
+
+# Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Banco de dados (não vamos subir o .db)
+database/*.db
+*.sqlite3
+
+# Outros
+.DS_Store
+*.log
