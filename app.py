@@ -18,7 +18,15 @@ import streamlit as st
 
 # Permite importar os modulos dentro de src/ quando o Streamlit corre
 # a partir da raiz do projeto.
-sys.path.append(str(Path(__file__).resolve().parent / "src"))
+# Insere src/ no INICIO do sys.path (nao no fim) -- isto e deliberado:
+# se alguma vez ficar um ficheiro .py esquecido na raiz do repositorio
+# (ex.: uma versao antiga de tema.py, de antes da reorganizacao em
+# src/), a raiz do projeto e sempre pesquisada em PRIMEIRO lugar pelo
+# Python (e onde o app.py vive). Com sys.path.append(), esse ficheiro
+# fantasma na raiz ganhava sempre ao correto dentro de src/, causando
+# ImportError (ou pior: nenhum erro, so logica desatualizada a correr
+# escondida). Com sys.path.insert(0, ...), src/ passa a ganhar sempre.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from formulario import render_formulario  # noqa: E402
 from database import (  # noqa: E402
