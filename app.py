@@ -147,6 +147,21 @@ with col_metrica_1:
 with col_metrica_2:
     st.metric("Clientes por classificar", len(listar_pendentes()))
 
+if contar_clientes() == 0:
+    st.warning(
+        "⚠️ A base de dados está sem clientes sintéticos. "
+        "Isto pode acontecer no primeiro arranque no Streamlit Cloud."
+    )
+    if st.button("🔄 Gerar clientes sintéticos agora"):
+        from database import diagnosticar_e_repovoar_clientes
+        with st.spinner("A gerar 100 clientes sintéticos..."):
+            sucesso, mensagem = diagnosticar_e_repovoar_clientes()
+        if sucesso:
+            st.success(mensagem)
+            st.rerun()
+        else:
+            st.error(f"Falhou: {mensagem}")
+
 st.divider()
 
 dados = render_formulario()
