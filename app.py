@@ -63,6 +63,7 @@ from dashboard_executivo import (  # noqa: E402
 from tema import (  # noqa: E402
     emoji_nivel,
     css_tema,
+    cabecalho_fixo,
     badge_nivel,
     cartao_antes_depois,
     cartao_papel,
@@ -127,8 +128,19 @@ if soma_pesos == 0:
 else:
     st.sidebar.caption(f"Soma atual: {soma_pesos} -- sera normalizada para 100%.")
 
-st.title("🛡️ Sentinel AI")
-st.caption("Classificação Multidimensional de Clientes -- Protótipo")
+n_clientes = contar_clientes()
+n_pendentes = len(listar_pendentes())
+
+st.markdown(
+    cabecalho_fixo(
+        titulo="Sentinel AI",
+        subtitulo="Classificação Multidimensional de Clientes -- Protótipo",
+        emoji="🛡️",
+        n_clientes=n_clientes,
+        n_pendentes=n_pendentes,
+    ),
+    unsafe_allow_html=True,
+)
 
 with st.expander("ℹ️ O que é o Sentinel AI? (clica para ver)"):
     st.markdown(
@@ -143,11 +155,11 @@ with st.expander("ℹ️ O que é o Sentinel AI? (clica para ver)"):
 
 col_metrica_1, col_metrica_2 = st.columns(2)
 with col_metrica_1:
-    st.metric("Clientes na base de dados", contar_clientes())
+    st.metric("Clientes na base de dados", n_clientes)
 with col_metrica_2:
-    st.metric("Clientes por classificar", len(listar_pendentes()))
+    st.metric("Clientes por classificar", n_pendentes)
 
-if contar_clientes() == 0:
+if n_clientes == 0:
     st.warning(
         "⚠️ A base de dados está sem clientes sintéticos. "
         "Isto pode acontecer no primeiro arranque no Streamlit Cloud."

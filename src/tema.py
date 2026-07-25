@@ -134,6 +134,64 @@ def css_tema() -> str:
     ::-webkit-scrollbar {{ width: 10px; height: 10px; }}
     ::-webkit-scrollbar-track {{ background: {COR_FUNDO}; }}
     ::-webkit-scrollbar-thumb {{ background: rgba(255, 204, 0, 0.4); border-radius: 6px; }}
+
+    /* --- Fase 1.5: Cabecalho Fixo Profissional --------------------------
+       "sticky" (nao "fixed"): fica preso ao TOPO da area de conteudo do
+       Streamlit enquanto o utilizador percorre a pagina, sem sobrepor a
+       barra de ferramentas nativa do Streamlit (que vive fora desta area
+       de scroll, por isso nunca ha conflito de z-index entre as duas). --- */
+    .sentinel-header-fixo {{
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px 18px;
+        background: rgba(10, 10, 16, 0.78);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        border: 1px solid rgba(255, 204, 0, 0.22);
+        border-radius: 16px;
+        padding: 14px 22px;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 10px 30px -16px rgba(255, 204, 0, 0.3);
+    }}
+    .sentinel-header-fixo .sentinel-header-titulo {{
+        font-size: 1.55rem;
+        font-weight: 800;
+        color: {COR_MARCA} !important;
+        text-shadow: 0 0 14px rgba(255, 204, 0, 0.35);
+        line-height: 1.2;
+        margin: 0;
+    }}
+    .sentinel-header-fixo .sentinel-header-subtitulo {{
+        font-size: 0.85rem;
+        color: {COR_TEXTO_SECUNDARIO};
+        margin: 2px 0 0 0;
+    }}
+    .sentinel-header-fixo .sentinel-header-stats {{
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }}
+    .sentinel-header-fixo .sentinel-header-pill {{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 204, 0, 0.08);
+        border: 1px solid rgba(255, 204, 0, 0.3);
+        color: {COR_TEXTO};
+        padding: 5px 14px;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }}
+    @media (max-width: 640px) {{
+        .sentinel-header-fixo {{ flex-direction: column; align-items: flex-start; }}
+    }}
     </style>
     """
 
@@ -142,6 +200,32 @@ def css_tema() -> str:
 # Componentes HTML reutilizaveis (retornam string, para usar com
 # st.markdown(..., unsafe_allow_html=True))
 # ---------------------------------------------------------------------------
+
+def cabecalho_fixo(titulo: str, subtitulo: str, emoji: str, n_clientes: int, n_pendentes: int) -> str:
+    """
+    Cabecalho fixo (sticky) do topo da app -- Fase 1.5 (Polimento Visual).
+
+    Substitui o antigo par st.title()/st.caption() por uma faixa que
+    permanece visivel enquanto o utilizador percorre a pagina, com o
+    titulo da app e dois indicadores rapidos (total de clientes e
+    pendentes de classificacao). Os numeros sao recebidos como
+    parametros -- este componente nunca consulta a base de dados
+    diretamente (isso e responsabilidade do app.py, que ja os calcula
+    para os st.metric() mais abaixo).
+    """
+    return f"""
+    <div class="sentinel-header-fixo">
+        <div>
+            <p class="sentinel-header-titulo">{emoji} {titulo}</p>
+            <p class="sentinel-header-subtitulo">{subtitulo}</p>
+        </div>
+        <div class="sentinel-header-stats">
+            <span class="sentinel-header-pill">👥 {n_clientes} clientes</span>
+            <span class="sentinel-header-pill">⏳ {n_pendentes} pendente(s)</span>
+        </div>
+    </div>
+    """
+
 
 def badge_nivel(nivel_seguranca: str) -> str:
     """Pequena pilula colorida com o Nivel de Seguranca -- usada inline no texto."""
