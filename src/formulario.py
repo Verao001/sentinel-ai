@@ -50,7 +50,7 @@ def _pergunta_adaptativa(segmento: str):
     """
     if segmento == "Private Banking":
         pergunta = PERGUNTA_PRIVATE_BANKING
-        resposta = st.selectbox(pergunta, ["Nao", "Sim"])
+        resposta = st.selectbox(pergunta, ["Não", "Sim"])
 
     elif segmento == "Retalho":
         pergunta = PERGUNTA_RETALHO
@@ -58,11 +58,11 @@ def _pergunta_adaptativa(segmento: str):
 
     elif segmento == "Corporate":
         pergunta = PERGUNTA_CORPORATE
-        resposta = st.selectbox(pergunta, ["Nao", "Ocasionalmente", "Frequentemente"])
+        resposta = st.selectbox(pergunta, ["Não", "Ocasionalmente", "Frequentemente"])
 
     elif segmento == "Digital":
         pergunta = PERGUNTA_DIGITAL
-        resposta = st.selectbox(pergunta, ["Sim", "Nao"])
+        resposta = st.selectbox(pergunta, ["Sim", "Não"])
 
     else:  # Corporate / Institucional
         pergunta = PERGUNTA_INSTITUCIONAL

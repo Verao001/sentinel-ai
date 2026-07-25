@@ -147,17 +147,17 @@ def classificar_cliente(dados_cliente: dict, respostas_adaptativas: dict, modelo
 
     explicacao = [
         f"O modelo estimou Risco AML={round(risco_aml_modelo)} e "
-        f"Risco de Credito={round(risco_credito_modelo)}, com base em clientes sinteticos parecidos.",
+        f"Risco de Crédito={round(risco_credito_modelo)}, com base em clientes sintéticos parecidos.",
         f"O perfil mais semelhante encontrado pelo modelo foi '{perfil_estimado}'.",
     ]
     if ajuste_aml or ajuste_credito:
         explicacao.append(
-            f"As regras de negocio ajustaram o risco em +{ajuste_aml} (AML) e +{ajuste_credito} "
-            f"(Credito), com base nas respostas do formulario adaptativo."
+            f"As regras de negócio ajustaram o risco em +{ajuste_aml} (AML) e +{ajuste_credito} "
+            f"(Crédito), com base nas respostas do formulário adaptativo."
         )
     if escalado:
         explicacao.append(
-            f"O Nivel de Seguranca foi escalado para 'Critico' por regra de seguranca "
+            f"O Nível de Segurança foi escalado para 'Crítico' por regra de segurança "
             f"(risco final >= {LIMIAR_RISCO_CRITICO}), independentemente do perfil estimado."
         )
 

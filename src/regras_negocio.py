@@ -58,12 +58,12 @@ def codificar_segmento(segmento: str) -> int:
 REGRAS_AJUSTE_AML = {
     PERGUNTA_PRIVATE_BANKING: {
         "Sim": 15,   # ter contas no estrangeiro e um sinal classico de AML
-        "Nao": 0,
+        "Não": 0,
     },
     PERGUNTA_CORPORATE: {
         "Frequentemente": 25,   # bandeira vermelha forte
         "Ocasionalmente": 10,
-        "Nao": 0,
+        "Não": 0,
     },
 }
 
@@ -74,7 +74,7 @@ REGRAS_AJUSTE_AML = {
 
 REGRAS_AJUSTE_CREDITO = {
     PERGUNTA_DIGITAL: {
-        "Nao": 15,   # identidade nao verificada = mais incerteza = mais risco
+        "Não": 15,   # identidade nao verificada = mais incerteza = mais risco
         "Sim": 0,
     },
 }

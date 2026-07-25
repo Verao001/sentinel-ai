@@ -211,7 +211,7 @@ else:
             emoji = emoji_nivel(resultado["nivel_seguranca"])
 
             with st.expander(
-                f"{emoji} {resultado['nome']} -- Nivel de Seguranca: {resultado['nivel_seguranca']}"
+                f"{emoji} {resultado['nome']} -- Nível de Segurança: {resultado['nivel_seguranca']}"
             ):
                 col_a, col_b, col_c = st.columns(3)
                 col_a.metric("Risco AML", resultado["risco_aml"])
@@ -230,7 +230,7 @@ st.divider()
 
 st.subheader("📊 Sentinel Index")
 st.caption(
-    "Uma unica pontuacao (0-100) que resume Risco AML, Risco de Credito "
+    "Uma única pontuação (0-100) que resume Risco AML, Risco de Crédito "
     "e Rentabilidade -- ajusta os pesos na barra lateral e recalcula."
 )
 

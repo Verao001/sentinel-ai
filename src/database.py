@@ -335,7 +335,7 @@ def inserir_cliente(dados_cliente: dict) -> int:
         None,  # risco_credito -- calculado na Fase 3
         dados_cliente["rentabilidade"],
         "Pendente",  # nivel_seguranca -- calculado na Fase 3
-        "Formulario Manual",
+        "Formulário Manual",
     ))
 
     conn.commit()
@@ -404,7 +404,7 @@ def obter_dados_treino() -> pd.DataFrame:
     conn = get_connection()
     df = pd.read_sql_query("""
         SELECT * FROM clientes
-        WHERE perfil_origem != 'Formulario Manual'
+        WHERE perfil_origem != 'Formulário Manual'
           AND risco_aml IS NOT NULL
           AND risco_credito IS NOT NULL
     """, conn)
