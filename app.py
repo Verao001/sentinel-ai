@@ -182,7 +182,7 @@ st.divider()
 # Motor de Classificacao Multidimensional (Fase 3)
 # ---------------------------------------------------------------------------
 
-st.subheader("🧠 Motor de Classificacao Multidimensional")
+st.subheader("🧠 Motor de Classificação Multidimensional")
 st.caption(
     "Combina um modelo de Machine Learning (treinado nos clientes sinteticos) "
     "com regras de negocio explicitas, para classificar automaticamente "
@@ -192,7 +192,7 @@ st.caption(
 total_pendentes = len(listar_pendentes())
 
 if total_pendentes == 0:
-    st.info("Nao ha clientes pendentes de classificacao neste momento.")
+    st.info("Não há clientes pendentes de classificação neste momento.")
 else:
     st.warning(f"{total_pendentes} cliente(s) por classificar.")
 
@@ -237,7 +237,7 @@ st.caption(
 total_classificados = len(listar_classificados())
 
 if total_classificados == 0:
-    st.info("Ainda nao ha clientes classificados. Classifica pendentes acima primeiro.")
+    st.info("Ainda não há clientes classificados. Classifica os clientes pendentes na secção acima primeiro.")
 elif soma_pesos == 0:
     st.warning("Ajusta os pesos na barra lateral antes de calcular o indice.")
 else:

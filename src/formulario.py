@@ -87,7 +87,7 @@ def render_formulario():
     selectbox do segmento fica fora do formulario, e so o resto fica
     dentro.
     """
-    st.subheader("Novo Cliente - Formulario Digital Adaptativo")
+    st.subheader("Novo Cliente – Formulário Digital Adaptativo")
 
     segmento = st.selectbox("Segmento Comercial", SEGMENTOS, key="segmento_selecionado")
 
@@ -97,10 +97,10 @@ def render_formulario():
         with col1:
             nome = st.text_input("Nome completo")
             idade = st.number_input("Idade", min_value=18, max_value=100, value=30)
-            profissao = st.selectbox("Profissao", PROFISSOES_POR_SEGMENTO[segmento])
+            profissao = st.selectbox("Profissão", PROFISSOES_POR_SEGMENTO[segmento])
 
         with col2:
-            saldo_medio = st.number_input("Saldo medio estimado (Kz)", min_value=0.0, step=1000.0)
+            saldo_medio = st.number_input("Saldo médio estimado (Kz)", min_value=0.0, step=1000.0)
             rentabilidade = st.number_input("Rentabilidade anual estimada (Kz)", min_value=0.0, step=500.0)
 
         st.markdown("---")
@@ -111,7 +111,7 @@ def render_formulario():
 
         if submeter:
             if not nome.strip():
-                st.error("O nome e obrigatorio.")
+                st.error("O nome é obrigatório.")
                 return None
 
             return {
