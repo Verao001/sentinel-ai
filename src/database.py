@@ -41,6 +41,13 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+COLUNAS_ESPERADAS_DATASET = {
+    "id_cliente", "nome", "idade", "profissao", "segmento_comercial",
+    "saldo_medio", "risco_aml", "risco_credito", "rentabilidade",
+    "nivel_seguranca", "perfil_origem",
+}
+
+
 def diagnosticar_e_repovoar_clientes() -> tuple[bool, str]:
     """
     Tenta popular a tabela 'clientes' com os 100 clientes sinteticos,
@@ -49,6 +56,18 @@ def diagnosticar_e_repovoar_clientes() -> tuple[bool, str]:
     normal, esta funcao existe para ser chamada manualmente (por um
     botao na interface) quando queremos ver exatamente o que esta a
     correr mal.
+
+    Inclui duas protecoes extra, adicionadas depois de um bug real:
+    projetos com um 'data_generator.py' duplicado (um na raiz, outro em
+    src/) podem importar acidentalmente a versao ERRADA -- com uma
+    assinatura de funcao diferente e colunas incompativeis com a tabela
+    'clientes'. Por isso:
+      1. Chamamos gerar_dataset(20) por posicao, nao por nome do
+         parametro -- funciona seja qual for o nome que essa versao usa.
+      2. Validamos as colunas do resultado ANTES de tentar inserir, e se
+         faltar alguma, a mensagem de erro diz exatamente qual ficheiro
+         foi importado (dg.__file__) -- prova definitiva de qual versao
+         esta ativa, sem adivinhar.
 
     Devolve (sucesso, mensagem) -- a interface mostra a mensagem
     diretamente ao utilizador, para nao ser preciso ir aos logs do
@@ -60,13 +79,32 @@ def diagnosticar_e_repovoar_clientes() -> tuple[bool, str]:
         if total_atual > 0:
             return True, f"A tabela 'clientes' ja tem {total_atual} registos -- nada a fazer."
 
-        from data_generator import gerar_dataset
-        df = gerar_dataset(clientes_por_perfil=20)
+        import data_generator as dg
+
+        try:
+            df = dg.gerar_dataset(20)  # posicional -- evita o erro de nome do parametro
+        except TypeError as erro:
+            return False, (
+                f"gerar_dataset() falhou ({erro}). Ficheiro 'data_generator.py' "
+                f"importado a partir de: {dg.__file__} -- verifica se este e o "
+                f"ficheiro certo (deve ser o de dentro de src/, nao o da raiz do projeto)."
+            )
+
+        colunas_em_falta = COLUNAS_ESPERADAS_DATASET - set(df.columns)
+        if colunas_em_falta:
+            return False, (
+                f"O 'data_generator.py' importado (a partir de: {dg.__file__}) "
+                f"gerou um dataset com colunas diferentes das esperadas. "
+                f"Faltam: {sorted(colunas_em_falta)}. Isto e sinal de um ficheiro "
+                f"data_generator.py DUPLICADO/DESATUALIZADO algures no projeto -- "
+                f"confirma que so existe UMA copia, dentro de src/."
+            )
+
         df.to_sql("clientes", conn, if_exists="append", index=False)
         conn.commit()
 
         total_final = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
-        return True, f"Sucesso: {total_final} clientes sinteticos inseridos."
+        return True, f"Sucesso: {total_final} clientes sinteticos inseridos (a partir de {dg.__file__})."
     except Exception as erro:
         causa = getattr(erro, "__cause__", None)
         detalhe = f"{type(erro).__name__}: {erro}"
@@ -121,7 +159,13 @@ def _criar_e_popular_tabela_clientes(conn: sqlite3.Connection) -> None:
     # caso raro (primeira vez que a app corre numa base de dados nova).
     from data_generator import gerar_dataset
 
-    df = gerar_dataset(clientes_por_perfil=20)
+    df = gerar_dataset(20)  # posicional -- robusto a diferencas no nome do parametro
+    colunas_em_falta = COLUNAS_ESPERADAS_DATASET - set(df.columns)
+    if colunas_em_falta:
+        raise ValueError(
+            f"data_generator.py incompativel -- faltam colunas {sorted(colunas_em_falta)}. "
+            f"Provavel ficheiro duplicado/desatualizado fora de src/."
+        )
     try:
         df.to_sql("clientes", conn, if_exists="append", index=False)
         conn.commit()
