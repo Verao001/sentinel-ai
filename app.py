@@ -167,8 +167,9 @@ st.divider()
 dados = render_formulario()
 
 if dados:
-    novo_id = inserir_cliente(dados)
-    inserir_respostas_adaptativas(novo_id, dados["respostas_adaptativas"])
+    with st.spinner("A registar cliente na base de dados..."):
+        novo_id = inserir_cliente(dados)
+        inserir_respostas_adaptativas(novo_id, dados["respostas_adaptativas"])
 
     st.success(f"Cliente '{dados['nome']}' registado com sucesso! (ID {novo_id})")
     st.info(
@@ -312,7 +313,8 @@ else:
     id_selecionado = opcoes[escolha]
 
     cliente = obter_cliente_por_id(id_selecionado)
-    contribuicoes = calcular_contribuicoes(cliente, df_com_indice, pesos=pesos_atuais)
+    with st.spinner("A calcular o perfil deste cliente..."):
+        contribuicoes = calcular_contribuicoes(cliente, df_com_indice, pesos=pesos_atuais)
 
     col_esq, col_dir = st.columns([1, 1.15])
 
@@ -349,7 +351,8 @@ else:
         # Modelo de Machine Learning utilizado (Melhoria 1)
         # -------------------------------------------------------------------
         with st.expander("🔬 Modelo de Machine Learning utilizado"):
-            _, metadados_modelo = _modelos_e_metadados_cache()
+            with st.spinner("A carregar informação do modelo de Machine Learning..."):
+                _, metadados_modelo = _modelos_e_metadados_cache()
             st.markdown(
                 f"- **Algoritmo:** {metadados_modelo['algoritmo']}, com "
                 f"**{metadados_modelo['n_arvores']} árvores de decisão** por modelo.\n"
@@ -405,8 +408,9 @@ else:
 
     cliente_isolamento = obter_cliente_por_id(id_cliente_isolamento)
     respostas_isolamento = obter_respostas_adaptativas(id_cliente_isolamento)
-    isolamento_ativo = cliente_aciona_isolamento(cliente_isolamento["nivel_seguranca"])
-    n_protegidos_gestor = contar_campos_protegidos("Gestor Comercial", cliente_isolamento["nivel_seguranca"])
+    with st.spinner("A calcular níveis de acesso por papel..."):
+        isolamento_ativo = cliente_aciona_isolamento(cliente_isolamento["nivel_seguranca"])
+        n_protegidos_gestor = contar_campos_protegidos("Gestor Comercial", cliente_isolamento["nivel_seguranca"])
 
     # -------------------------------------------------------------------
     # Faixa dramática ANTES (vermelho) / DEPOIS (verde) -- Melhoria 2
@@ -486,7 +490,12 @@ if df_dashboard.empty:
         "Classifica clientes e calcula o Sentinel Index nas secções acima primeiro."
     )
 else:
-    kpis = calcular_kpis(df_dashboard)
+    with st.spinner("A atualizar o Dashboard Executivo..."):
+        kpis = calcular_kpis(df_dashboard)
+        fig_distribuicao = grafico_distribuicao_niveis(df_dashboard)
+        fig_por_segmento = grafico_index_por_segmento(df_dashboard)
+        fig_dispersao = grafico_dispersao_risco(df_dashboard)
+        top_n, bottom_n = tabela_extremos(df_dashboard, n=5)
 
     col_k1, col_k2, col_k3 = st.columns(3)
     col_k1.metric("Total de Clientes", kpis["total_clientes"])
@@ -508,14 +517,13 @@ else:
 
     col_g1, col_g2 = st.columns(2)
     with col_g1:
-        st.plotly_chart(grafico_distribuicao_niveis(df_dashboard), use_container_width=True)
+        st.plotly_chart(fig_distribuicao, use_container_width=True)
     with col_g2:
-        st.plotly_chart(grafico_index_por_segmento(df_dashboard), use_container_width=True)
+        st.plotly_chart(fig_por_segmento, use_container_width=True)
 
-    st.plotly_chart(grafico_dispersao_risco(df_dashboard), use_container_width=True)
+    st.plotly_chart(fig_dispersao, use_container_width=True)
 
     col_t1, col_t2 = st.columns(2)
-    top_n, bottom_n = tabela_extremos(df_dashboard, n=5)
     with col_t1:
         st.markdown("**🏆 Top 5 -- Melhor Sentinel Index**")
         st.dataframe(top_n, hide_index=True, use_container_width=True)
