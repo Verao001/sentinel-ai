@@ -16,10 +16,86 @@ o ficheiro .db estar (ou nao) no GitHub.
 """
 
 import os
+import random
 import sqlite3
 from pathlib import Path
 
 import pandas as pd
+from faker import Faker
+
+
+# ---------------------------------------------------------------------------
+# Gerador de clientes sinteticos AUTO-CONTIDO (fallback de emergencia)
+# ---------------------------------------------------------------------------
+# Depois de 3 tentativas de resolver um ficheiro data_generator.py
+# "fantasma" a ser importado no Streamlit Cloud (mesmo apos remocao
+# confirmada no Git e reboot da app), a decisao mais robusta e deixar de
+# depender de importar esse ficheiro para a etapa critica de popular a
+# base de dados. Esta copia, propositadamente identica aos 5 perfis de
+# data_generator.py, corre sempre a partir DESTE modulo -- nunca sofre
+# de ambiguidade de import. O data_generator.py continua a existir e a
+# funcionar normalmente para quem o correr a mao (ex.: para gerar o CSV).
+
+_PERFIS_FALLBACK = {
+    "Premium Baixo Risco": dict(
+        segmento_comercial="Private Banking", saldo_range=(500_000, 5_000_000),
+        risco_aml_range=(0, 15), risco_credito_range=(0, 20),
+        rentabilidade_range=(50_000, 300_000), nivel_seguranca="Baixo",
+        profissoes=["Empresario", "Medico", "Advogado", "Diretor Executivo"],
+    ),
+    "Massa Media Estavel": dict(
+        segmento_comercial="Retalho", saldo_range=(5_000, 80_000),
+        risco_aml_range=(5, 30), risco_credito_range=(20, 45),
+        rentabilidade_range=(1_000, 8_000), nivel_seguranca="Medio",
+        profissoes=["Professor", "Enfermeiro", "Funcionario Publico", "Comerciante"],
+    ),
+    "Alto Risco AML": dict(
+        segmento_comercial="Corporate", saldo_range=(100_000, 2_000_000),
+        risco_aml_range=(70, 100), risco_credito_range=(30, 60),
+        rentabilidade_range=(10_000, 150_000), nivel_seguranca="Critico",
+        profissoes=["Importador/Exportador", "Consultor Offshore", "Cambio Informal"],
+    ),
+    "Jovem Novo Cliente": dict(
+        segmento_comercial="Digital", saldo_range=(0, 3_000),
+        risco_aml_range=(0, 20), risco_credito_range=(50, 80),
+        rentabilidade_range=(0, 500), nivel_seguranca="Medio",
+        profissoes=["Estudante", "Estagiario", "Freelancer"],
+    ),
+    "Institucional Alto Valor": dict(
+        segmento_comercial="Corporate / Institucional", saldo_range=(2_000_000, 20_000_000),
+        risco_aml_range=(10, 40), risco_credito_range=(5, 25),
+        rentabilidade_range=(200_000, 1_500_000), nivel_seguranca="Alto",
+        profissoes=["Fundo de Investimento", "Seguradora", "Multinacional"],
+    ),
+}
+
+
+def _gerar_clientes_sinteticos(clientes_por_perfil: int = 20) -> pd.DataFrame:
+    """Gera os clientes sinteticos diretamente aqui -- sem depender de importar data_generator.py."""
+    fake = Faker("pt_PT")
+    random.seed(42)
+
+    clientes = []
+    id_atual = 1
+    for nome_perfil, config in _PERFIS_FALLBACK.items():
+        for _ in range(clientes_por_perfil):
+            clientes.append({
+                "id_cliente": id_atual,
+                "nome": fake.name(),
+                "idade": random.randint(19, 75),
+                "profissao": random.choice(config["profissoes"]),
+                "segmento_comercial": config["segmento_comercial"],
+                "saldo_medio": round(random.uniform(*config["saldo_range"]), 2),
+                "risco_aml": random.randint(*config["risco_aml_range"]),
+                "risco_credito": random.randint(*config["risco_credito_range"]),
+                "rentabilidade": round(random.uniform(*config["rentabilidade_range"]), 2),
+                "nivel_seguranca": config["nivel_seguranca"],
+                "perfil_origem": nome_perfil,
+            })
+            id_atual += 1
+
+    df = pd.DataFrame(clientes)
+    return df.sample(frac=1, random_state=42).reset_index(drop=True)
 
 # Caminho ABSOLUTO, calculado a partir da localizacao deste ficheiro --
 # funciona sempre da mesma forma, seja qual for a pasta a partir de onde
@@ -57,17 +133,11 @@ def diagnosticar_e_repovoar_clientes() -> tuple[bool, str]:
     botao na interface) quando queremos ver exatamente o que esta a
     correr mal.
 
-    Inclui duas protecoes extra, adicionadas depois de um bug real:
-    projetos com um 'data_generator.py' duplicado (um na raiz, outro em
-    src/) podem importar acidentalmente a versao ERRADA -- com uma
-    assinatura de funcao diferente e colunas incompativeis com a tabela
-    'clientes'. Por isso:
-      1. Chamamos gerar_dataset(20) por posicao, nao por nome do
-         parametro -- funciona seja qual for o nome que essa versao usa.
-      2. Validamos as colunas do resultado ANTES de tentar inserir, e se
-         faltar alguma, a mensagem de erro diz exatamente qual ficheiro
-         foi importado (dg.__file__) -- prova definitiva de qual versao
-         esta ativa, sem adivinhar.
+    Depois de o Streamlit Cloud insistir em importar uma versao antiga/
+    duplicada de data_generator.py (mesmo apos remocao confirmada no Git
+    e reboot da app -- um problema de cache do ambiente, nao do codigo),
+    esta funcao deixou de depender desse import: usa o gerador de
+    clientes sinteticos auto-contido definido no topo deste ficheiro.
 
     Devolve (sucesso, mensagem) -- a interface mostra a mensagem
     diretamente ao utilizador, para nao ser preciso ir aos logs do
@@ -79,32 +149,13 @@ def diagnosticar_e_repovoar_clientes() -> tuple[bool, str]:
         if total_atual > 0:
             return True, f"A tabela 'clientes' ja tem {total_atual} registos -- nada a fazer."
 
-        import data_generator as dg
-
-        try:
-            df = dg.gerar_dataset(20)  # posicional -- evita o erro de nome do parametro
-        except TypeError as erro:
-            return False, (
-                f"gerar_dataset() falhou ({erro}). Ficheiro 'data_generator.py' "
-                f"importado a partir de: {dg.__file__} -- verifica se este e o "
-                f"ficheiro certo (deve ser o de dentro de src/, nao o da raiz do projeto)."
-            )
-
-        colunas_em_falta = COLUNAS_ESPERADAS_DATASET - set(df.columns)
-        if colunas_em_falta:
-            return False, (
-                f"O 'data_generator.py' importado (a partir de: {dg.__file__}) "
-                f"gerou um dataset com colunas diferentes das esperadas. "
-                f"Faltam: {sorted(colunas_em_falta)}. Isto e sinal de um ficheiro "
-                f"data_generator.py DUPLICADO/DESATUALIZADO algures no projeto -- "
-                f"confirma que so existe UMA copia, dentro de src/."
-            )
+        df = _gerar_clientes_sinteticos(20)
 
         df.to_sql("clientes", conn, if_exists="append", index=False)
         conn.commit()
 
         total_final = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
-        return True, f"Sucesso: {total_final} clientes sinteticos inseridos (a partir de {dg.__file__})."
+        return True, f"Sucesso: {total_final} clientes sinteticos inseridos (gerador auto-contido)."
     except Exception as erro:
         causa = getattr(erro, "__cause__", None)
         detalhe = f"{type(erro).__name__}: {erro}"
@@ -155,17 +206,7 @@ def _criar_e_popular_tabela_clientes(conn: sqlite3.Connection) -> None:
     if total_atual > 0:
         return
 
-    # Import local: so precisamos do gerador de dados sinteticos neste
-    # caso raro (primeira vez que a app corre numa base de dados nova).
-    from data_generator import gerar_dataset
-
-    df = gerar_dataset(20)  # posicional -- robusto a diferencas no nome do parametro
-    colunas_em_falta = COLUNAS_ESPERADAS_DATASET - set(df.columns)
-    if colunas_em_falta:
-        raise ValueError(
-            f"data_generator.py incompativel -- faltam colunas {sorted(colunas_em_falta)}. "
-            f"Provavel ficheiro duplicado/desatualizado fora de src/."
-        )
+    df = _gerar_clientes_sinteticos(20)
     try:
         df.to_sql("clientes", conn, if_exists="append", index=False)
         conn.commit()
