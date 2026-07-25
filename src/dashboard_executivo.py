@@ -74,7 +74,8 @@ def grafico_distribuicao_niveis(df) -> go.Figure:
         marker=dict(line=dict(color="#0A0A10", width=2)),
     )
     fig.update_layout(
-        margin=dict(l=10, r=10, t=30, b=10), height=320,
+        title=dict(text="Distribuição por Nível de Segurança", font=dict(size=15, color=COR_MARCA), x=0.02),
+        margin=dict(l=10, r=10, t=50, b=10), height=320,
         legend_title_text="Nível de Segurança",
     )
     return aplicar_tema_plotly(fig)
@@ -108,9 +109,11 @@ def grafico_index_por_segmento(df) -> go.Figure:
         textfont=dict(color="#0A0A10", size=12),
     ))
     fig.update_layout(
+        title=dict(text="Sentinel Index Médio por Segmento", font=dict(size=15, color=COR_MARCA), x=0.02),
         xaxis_title="Sentinel Index médio",
+        yaxis_title="Segmento Comercial",
         xaxis_range=[0, 100],
-        margin=dict(l=10, r=10, t=20, b=10),
+        margin=dict(l=10, r=10, t=50, b=10),
         height=320,
     )
     return aplicar_tema_plotly(fig)
@@ -135,7 +138,8 @@ def grafico_dispersao_risco(df) -> go.Figure:
     )
     fig.update_traces(marker=dict(size=11, line=dict(width=1, color="#0A0A10"), opacity=0.92))
     fig.update_layout(
-        margin=dict(l=10, r=10, t=20, b=10), height=380,
+        title=dict(text="Mapa de Risco da Carteira (AML vs Crédito)", font=dict(size=15, color=COR_MARCA), x=0.02),
+        margin=dict(l=10, r=10, t=50, b=10), height=380,
         legend_title_text="Nível de Segurança",
     )
     return aplicar_tema_plotly(fig)

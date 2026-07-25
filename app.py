@@ -361,7 +361,14 @@ else:
                 f"resultado final -- nunca é só \"a IA decidiu\"."
             )
             st.caption("Importância de cada variável na estimativa do Risco AML:")
+            nomes_legiveis_features = {
+                "idade": "Idade",
+                "saldo_medio": "Saldo Médio",
+                "rentabilidade": "Rentabilidade",
+                "segmento_encoded": "Segmento Comercial",
+            }
             importancias = pd.Series(metadados_modelo["importancia_risco_aml"])
+            importancias.index = [nomes_legiveis_features.get(i, i) for i in importancias.index]
             st.bar_chart(importancias)
 
     with col_dir:
@@ -501,13 +508,10 @@ else:
 
     col_g1, col_g2 = st.columns(2)
     with col_g1:
-        st.markdown("**Distribuição por Nível de Segurança**")
         st.plotly_chart(grafico_distribuicao_niveis(df_dashboard), use_container_width=True)
     with col_g2:
-        st.markdown("**Sentinel Index Médio por Segmento**")
         st.plotly_chart(grafico_index_por_segmento(df_dashboard), use_container_width=True)
 
-    st.markdown("**Mapa de Risco da Carteira (AML vs Crédito)**")
     st.plotly_chart(grafico_dispersao_risco(df_dashboard), use_container_width=True)
 
     col_t1, col_t2 = st.columns(2)

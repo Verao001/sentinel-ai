@@ -46,12 +46,12 @@ def calcular_contribuicoes(cliente, df_referencia, pesos: dict = None) -> dict:
     contribuicao_rentabilidade = pesos["rentabilidade"] / 100 * rentabilidade_normalizada
 
     return {
-        "Seguranca AML": round(contribuicao_aml, 1),
-        "Seguranca Credito": round(contribuicao_credito, 1),
+        "Segurança AML": round(contribuicao_aml, 1),
+        "Segurança Crédito": round(contribuicao_credito, 1),
         "Rentabilidade": round(contribuicao_rentabilidade, 1),
         "_valores_0_100": {
-            "Seguranca AML": round(seguranca_aml, 1),
-            "Seguranca Credito": round(seguranca_credito, 1),
+            "Segurança AML": round(seguranca_aml, 1),
+            "Segurança Crédito": round(seguranca_credito, 1),
             "Rentabilidade": round(rentabilidade_normalizada, 1),
         },
     }
@@ -82,6 +82,7 @@ def gerar_grafico_radar(contribuicoes: dict) -> go.Figure:
         marker=dict(size=9, color=COR_MARCA_CLARA, line=dict(color=COR_MARCA, width=1)),
     ))
     fig.update_layout(
+        title=dict(text="Perfil de Risco (visão radar)", font=dict(size=15, color=COR_MARCA), x=0.02),
         polar=dict(
             radialaxis=dict(
                 visible=True, range=[0, 100],
@@ -92,7 +93,7 @@ def gerar_grafico_radar(contribuicoes: dict) -> go.Figure:
             bgcolor="rgba(0,0,0,0)",
         ),
         showlegend=False,
-        margin=dict(l=60, r=60, t=40, b=40),
+        margin=dict(l=60, r=60, t=60, b=40),
         height=460,
         paper_bgcolor="rgba(0,0,0,0)",
     )
@@ -123,8 +124,9 @@ def gerar_grafico_contribuicoes(contribuicoes: dict) -> go.Figure:
         textfont=dict(color="#0A0A10", size=13, family="Inter"),
     ))
     fig.update_layout(
-        xaxis_title="Pontos contribuidos para o Sentinel Index",
-        margin=dict(l=10, r=10, t=10, b=10),
+        title=dict(text="Contribuição por Dimensão", font=dict(size=15, color=COR_MARCA), x=0.02),
+        xaxis_title="Pontos contribuídos para o Sentinel Index",
+        margin=dict(l=10, r=10, t=45, b=10),
         height=270,
         bargap=0.35,
     )
